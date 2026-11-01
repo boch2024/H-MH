@@ -2,6 +2,7 @@ import math
 import random
 from collections import deque
 from matplotlib import pyplot as plt
+from neo4j import GraphDatabase
 
 INF = float("inf")
 
@@ -174,7 +175,25 @@ def tracer_comparaison_tsp(
     plt.tight_layout()
     plt.show()
 
-
+def ingestion_neo4j(tx,solution,matrice_distances):
+    for i in range(len(solution)):
+        cur_index=solution[i]
+        next_index=solution[(i+1)%len(solution)]
+        ville=f"ville_{cur_index+1}"
+        next_ville=f"ville_{next_index+1}"
+        distance=matrice_distances[cur_index][next_index]
+        tx.run(
+            "MERGE (v1:Ville {nom: $ville}) "
+            "MERGE (v2:Ville {nom: $next_ville}) "
+            "MERGE (v1)-[:CHEMIN {distance: $distance}]->(v2)",
+            ville=ville,
+            next_ville=next_ville,
+            distance=distance)  
+def sauvegarder_dans_neo4j(solution,matrice_distances):
+    driver=GraphDatabase.driver("neo4j://127.0.0.1:7687",auth=("neo4j","bech1234"))
+    with driver.session()as session:
+        session.execute_write(ingestion_neo4j,solution,matrice_distances)
+    driver.close()
 if __name__ == "__main__":
     random.seed(42)
 
@@ -208,6 +227,8 @@ if __name__ == "__main__":
         print("\nMeilleur résultat : Recuit Simulé")
     else:
         print("\nLes deux algorithmes ont trouvé la même distance.")
+
+    sauvegarder_dans_neo4j(sol_rt, matrice_distances)
 
     tracer_comparaison_tsp(
         sol_rt, dist_rt, sol_rs, dist_rs, matrice_distances
